@@ -9,16 +9,25 @@ export const generateImage = async (req, res) => {
 
     const { userId, prompt } = req.body
 
-    // Fetching User Details Using userId
-    const user = await userModel.findById(userId)
-    
-    if (!user || !prompt) {
+    if (!userId || !prompt) {
       return res.json({ success: false, message: 'Missing Details' })
     }
 
-    // Checking User creditBalance
-    if (user.creditBalance === 0 || userModel.creditBalance < 0) {
-      return res.json({ success: false, message: 'No Credit Balance', creditBalance: user.creditBalance })
+    // Atomically deduct 1 credit only if balance > 0 (prevents race condition)
+    const user = await userModel.findOneAndUpdate(
+      { _id: userId, creditBalance: { $gt: 0 } },
+      { $inc: { creditBalance: -1 } },
+      { new: true }
+    )
+
+    if (!user) {
+      // Either user doesn't exist or has no credits left
+      const existingUser = await userModel.findById(userId)
+      return res.json({
+        success: false,
+        message: existingUser ? 'No Credit Balance' : 'User not found',
+        creditBalance: existingUser ? existingUser.creditBalance : 0
+      })
     }
 
     // Creation of new multi/part formdata
@@ -33,15 +42,12 @@ export const generateImage = async (req, res) => {
       responseType: "arraybuffer"
     })
 
-    // Convertion of arrayBuffer to base64
+    // Conversion of arrayBuffer to base64
     const base64Image = Buffer.from(data, 'binary').toString('base64');
     const resultImage = `data:image/png;base64,${base64Image}`
 
-    // Deduction of user credit 
-    await userModel.findByIdAndUpdate(user._id, { creditBalance: user.creditBalance - 1 })
-
     // Sending Response
-    res.json({ success: true, message: "Image Generated Successfully", resultImage, creditBalance: user.creditBalance - 1 })
+    res.json({ success: true, message: "Image Generated Successfully", resultImage, creditBalance: user.creditBalance })
 
   } catch (error) {
     console.log(error.message)

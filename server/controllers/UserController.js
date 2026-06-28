@@ -15,6 +15,12 @@ const registerUser = async (req, res) => {
             return res.json({ success: false, message: 'Missing Details' })
         }
 
+        // checking if user already exists
+        const existingUser = await userModel.findOne({ email })
+        if (existingUser) {
+            return res.json({ success: false, message: 'Email already registered' })
+        }
+
         // hashing user password
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt)
@@ -46,13 +52,13 @@ const loginUser = async (req, res) => {
         const user = await userModel.findOne({ email })
 
         if (!user) {
-            return res.json({ success: false, message: "User does not exist" })
+            return res.json({ success: false, message: "Invalid credentials" })
         }
 
         const isMatch = await bcrypt.compare(password, user.password)
 
         if (isMatch) {
-            const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET)
+            const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' })
             res.json({ success: true, token, user: { name: user.name } })
         }
         else {
@@ -177,10 +183,11 @@ const verifyRazorpay = async (req, res) => {
                 return res.json({ success: false, message: 'Payment already completed' })
             }
 
-            // Adding Credits in user data
-            const userData = await userModel.findById(transactionData.userId)
-            const creditBalance = userData.creditBalance + transactionData.credits
-            await userModel.findByIdAndUpdate(userData._id, { creditBalance })
+            // Adding Credits in user data (atomic update prevents race conditions)
+            await userModel.findByIdAndUpdate(
+              transactionData.userId,
+              { $inc: { creditBalance: transactionData.credits } }
+            )
 
             // Marking the payment true 
             await transactionModel.findByIdAndUpdate(transactionData._id, { payment: true })

@@ -1,20 +1,3 @@
-// import mongoose from "mongoose";
-
-// const connectDB = async () => {
-//    try {  
-//      const mongoURI = `${process.env.MONGODB_URI}/photolytics`;
-//      await mongoose.connect(mongoURI);
-//      console.log("Database Connected");
-//      console.log(process.env.MONGODB_URI);
-//     } 
-//     catch (error) {
-//          console.log(error);
-//     }
-// }
-
-// export default connectDB;
-
-
 import mongoose from "mongoose";
 import dns from "dns";
 
@@ -23,17 +6,14 @@ dns.setServers(["8.8.8.8", "1.1.1.1"]);
 
 const connectDB = async () => {
   try {
-    console.log("URI =", process.env.MONGODB_URI);
-
     const mongoURI = `${process.env.MONGODB_URI}/photolytics`;
-
-    console.log("Connecting to:", mongoURI);
 
     await mongoose.connect(mongoURI);
 
     console.log("Database Connected");
   } catch (error) {
-    console.error("MongoDB Error:", error);
+    console.error("MongoDB Connection Failed:", error);
+    process.exit(1);
   }
 };
 
